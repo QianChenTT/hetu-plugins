@@ -1,0 +1,14 @@
+{
+  "id": "file-explorer",
+  "name": "Files",
+  "version": "0.1.0",
+  "api": "^3",
+  "entries": { "worker": "dist/worker.js" },
+  "requires": ["luoshu"],
+  "views": { "files": { "title": "Files", "kind": "view" } },
+  "capabilities": [
+    { "type": "luoshu.list", "paths": ["**"] },
+    { "type": "ui.view" },
+    { "type": "storage" }
+  ]
+}
