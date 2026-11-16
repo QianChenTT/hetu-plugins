@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parseDrawerCall } from '../../hetu/core/api/ui.ts'
 import { BINDINGS, Explorer } from '../src/explorer.ts'
 import explorer from '../src/worker.ts'
-import { click, close, command, core, emit, has, manifest, nodes, row, rows, same, texts, until, view } from './helpers.ts'
+import { click, close, command, core, emit, has, manifest, nodes, row, rows, same, texts, tick, until, view } from './helpers.ts'
 
 afterEach(close)
 
@@ -138,6 +138,20 @@ describe('renaming a note', () => {
     await until(() => has(drawer, 'new'))
     command(drawer, 'delete')
     await until(() => texts(drawer).includes('Move a to the recycle bin?'))
+  })
+
+  it('does nothing on F2 or Delete with no note selected, a selected folder included', async () => {
+    const { drawer } = await started({ 'a.md': 'x', 'b/c.md': 'y' })
+    const still = async () => {
+      command(drawer, 'rename')
+      command(drawer, 'delete')
+      await tick(50)
+      expect([has(drawer, 'name'), has(drawer, 'ask'), has(drawer, 'new')]).toEqual([false, false, true])
+    }
+    await still()
+    click(drawer, row(drawer, '▸ b'))
+    await until(() => rows(drawer).includes('▾ b'))
+    await still()
   })
 
   it('binds F2 and Delete with key names the drawer takes', () => {
