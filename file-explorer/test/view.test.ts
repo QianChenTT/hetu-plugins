@@ -37,7 +37,7 @@ describe('the explorer\'s view', () => {
     await until(() => same(rows(drawer), ['▸ a', 'c']))
   })
 
-  // The drawer refuses a tree past 10,000 nodes or a call past 1 MiB, and the plugin is never told where a list is
+  // The drawer refuses a tree past 10,000 nodes or a call past 1 MiB and the plugin is never told where a list is
   // scrolled, so it sends as many rows as fit and says how many it left out
   it('draws 10,000 notes in one open folder under the drawer\'s caps, the last row saying how many more there are', async () => {
     const notes = Object.fromEntries(Array.from({ length: 10_000 }, (_, i) => [`big/n${String(i).padStart(5, '0')}.md`, '']))

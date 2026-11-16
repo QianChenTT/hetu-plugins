@@ -16,7 +16,7 @@ type ViewEvent = Extract<UiEvent, { topic: 'view.event' }>
 const NOTE = '.md'
 const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '')
 
-// Lists again on each change the luoshu makes or sees made outside it, and on events.dropped, which says changes were
+// Lists again on each change the luoshu makes or sees made outside it and on events.dropped, which says changes were
 // missed
 export async function subscribe(ctx: Pick<PluginContext, 'events'>, refresh: () => void): Promise<void> {
   await ctx.events.on(['luoshu.changed', 'luoshu.outside'], () => refresh(), { onResync: () => refresh() })
@@ -29,7 +29,7 @@ export class Explorer {
   private readonly ids = new Ids()
   private tree: Folder = treeOf([])
   private open = new Set<string>()
-  // Why the last listing failed, and what the last action came to, shown in the status line
+  // Why the last listing failed and what the last action came to, shown in the status line
   private listing: string | null = null
   private told: string | null = null
   private selected: Selected | null = null
@@ -183,7 +183,7 @@ export class Explorer {
     await this.ctx.try(this.ctx.storage.set({ key: OPEN, value: [...this.open] }))
   }
 
-  // One draw at a time, and one more after it when anything changed meanwhile
+  // One draw at a time and one more after it when anything changed meanwhile
   private async draw(): Promise<void> {
     if (this.drawing) {
       this.drawAgain = true

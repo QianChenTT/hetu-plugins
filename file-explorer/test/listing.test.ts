@@ -43,7 +43,7 @@ describe('a listing', () => {
     expect(waited).toEqual([RETRY_MS, RETRY_MS])
   })
 
-  it('gives up once it waited WAIT_MS in all, and at once on any other refusal', async () => {
+  it('gives up once it waited WAIT_MS in all and at once on any other refusal', async () => {
     const { list } = luoshu(['a.md', 'b.md', 'c.md'], { 'b.md': Array(1000).fill('throttled') })
     const { waited, wait } = waits()
     expect(await listAll(list, wait)).toEqual({ ok: false, code: 'throttled' })

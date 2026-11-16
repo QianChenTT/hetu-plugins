@@ -12,7 +12,7 @@ afterEach(close)
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex')
 
-// The plugin with every luoshu call it makes written down, and a hook run just before a remove goes out
+// The plugin with every luoshu call it makes written down and a hook run just before a remove goes out
 function counted() {
   const calls: string[] = []
   const hooks: { beforeRemove?: () => Promise<void> } = {}
@@ -115,7 +115,7 @@ describe('renaming a note', () => {
     await until(() => same(rows(drawer), ['▸ b']))
   })
 
-  it('says a rename onto a note that exists is taken, and shows a rename into a dot folder refused', async () => {
+  it('says a rename onto a note that exists is taken and shows a rename into a dot folder refused', async () => {
     const { fake, drawer } = await started({ 'a.md': 'x', 'b.md': 'y' })
     await select(drawer, 'a')
     click(drawer, 'rename')
@@ -128,7 +128,7 @@ describe('renaming a note', () => {
   })
 
   // A Tab moves focus to another row with no event to the plugin, so F2 and Delete act on the row clicked last, which
-  // the view marks as selected, and not on the row that has focus
+  // the view marks as selected and not on the row that has focus
   it('renames on F2 and asks before a delete on Delete, both for the row clicked last', async () => {
     const { drawer } = await started({ 'a.md': 'x', 'b.md': 'y' })
     await select(drawer, 'a')
@@ -196,7 +196,7 @@ describe('deleting a note', () => {
 })
 
 describe('what the explorer reads', () => {
-  it('reads a note once for each delete, just before removing it, and never to list, open, create or rename', async () => {
+  it('reads a note once for each delete, just before removing it and never to list, open, create or rename', async () => {
     const { plugin, calls } = counted()
     const { fake, drawer } = await started({}, core({ notes: { 'a.md': 'x', 'b.md': 'y' } }), plugin)
     click(drawer, row(drawer, 'a'))

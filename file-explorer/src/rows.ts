@@ -44,7 +44,7 @@ export function folderPaths(root: Folder): Set<string> {
 }
 
 // The size hetu's carrier and drawer hold a call to (core/api/measure.ts): the UTF-8 bytes of every key and string, a
-// surrogate counted 2, an array's indexes counted as keys, and 8 for every value and every array slot
+// surrogate counted 2, an array's indexes counted as keys and 8 for every value and every array slot
 export function sizeOf(value: unknown): number {
   let bytes = 8
   if (typeof value === 'string') {
@@ -69,7 +69,7 @@ export function countOf(node: UiNode): number {
 const MORE = { padding: '0 8px', color: 'var(--hetu-color-muted)', 'line-height': '28px' }
 
 // The nodes of as many rows as fit in room, counted in nodes and in sizeOf bytes with each row's slot and index, in
-// order. When a row doesn't fit, a last text says how many rows were left out, and room for it is kept back from every
+// order. When a row doesn't fit, a last text says how many rows were left out and room for it is kept back from every
 // row but the last
 export function rowNodes<T>(rows: readonly T[], node: (row: T) => UiNode, room: { nodes: number, bytes: number }): UiNode[] {
   const more = (left: number): UiNode => ({ id: 'more', kind: 'text', text: `${left} more`, style: MORE })
