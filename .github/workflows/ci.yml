@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege for the automatic GITHUB_TOKEN: read-only
+permissions:
+  contents: read
+
+jobs:
+  # The tests, the typecheck and each plugin built with its manifest checked, against hetu at the commit the submodule
+  # pins. Windows too, since it is hetu's main target
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # hetu one level deep, never recursively, so no submodule of hetu's is ever fetched
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # hetu's packages as its own lock pins them, which the SDK and its test fake run on. Install scripts are skipped
+      - name: install hetu's packages
+        working-directory: hetu
+        run: npm ci --ignore-scripts
+      # The SDK by its file link into hetu and the three packages it declares
+      - name: install packages
+        run: npm ci --ignore-scripts
+      - name: typecheck
+        run: npm run typecheck
+      - name: build and check manifests
+        run: npm run build
+      - name: run tests
+        run: npm test

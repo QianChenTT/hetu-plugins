@@ -1,4 +1,16 @@
 {
   "name": "hetu-plugins",
-  "private": true
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.ts",
+    "test": "node hetu/node_modules/vitest/vitest.mjs run",
+    "typecheck": "node hetu/node_modules/typescript/bin/tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@hetu/sdk": "file:hetu/core/sdk"
+  }
 }
