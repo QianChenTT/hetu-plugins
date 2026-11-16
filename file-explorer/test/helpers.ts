@@ -6,7 +6,7 @@ export const manifest = path.join(import.meta.dirname, '..', 'hetu-plugin.json')
 const cores: FakeCore[] = []
 
 // A fake core with a drawer, closed by close()
-export function core(options: Omit<FakeCoreOptions, 'manifest' | 'drawer'> = {}): { fake: FakeCore, drawer: FakeDrawer } {
+export function core(options: Omit<FakeCoreOptions, 'manifest' | 'drawer'> & { manifest?: FakeCoreOptions['manifest'] } = {}): { fake: FakeCore, drawer: FakeDrawer } {
   const drawer = new FakeDrawer()
   const fake = fakeCore({ manifest, drawer, ...options })
   cores.push(fake)
@@ -66,3 +66,22 @@ export function click(drawer: FakeDrawer, node: string): void {
 }
 
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+export function emit(drawer: FakeDrawer, node: string, type: 'input' | 'submit', value: string): void {
+  drawer.emit({ topic: 'view.event', instance: instance(drawer), node, type, value })
+}
+
+export function command(drawer: FakeDrawer, name: string): void {
+  drawer.emit({ topic: 'view.command', instance: instance(drawer), command: name })
+}
+
+// The texts the view shows outside the rows: the bar, the status line, the question before a delete
+export function texts(drawer: FakeDrawer): string[] {
+  const list = nodes(view(drawer)).find(node => node.kind === 'list') as { rows: UiNode[] } | undefined
+  const inRows = new Set(nodes({ id: 'x', kind: 'box', children: list?.rows ?? [] }).map(node => node.id))
+  return nodes(view(drawer)).filter(node => !inRows.has(node.id) && (node.kind === 'text' || node.kind === 'button')).map(node => (node as { text: string }).text)
+}
+
+export function has(drawer: FakeDrawer, id: string): boolean {
+  return nodes(view(drawer)).some(node => node.id === id)
+}

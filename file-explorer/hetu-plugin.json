@@ -8,6 +8,8 @@
   "views": { "files": { "title": "Files", "kind": "view" } },
   "capabilities": [
     { "type": "luoshu.list", "paths": ["**"] },
+    { "type": "luoshu.read", "paths": ["**"] },
+    { "type": "luoshu.write", "paths": ["**"] },
     { "type": "ui.view" },
     { "type": "events.subscribe", "topics": ["luoshu.changed", "luoshu.outside"] },
     { "type": "storage" }
