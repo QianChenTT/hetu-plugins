@@ -13,5 +13,6 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["build.ts", "vitest.config.ts", "test"]
+  "include": ["build.ts", "vitest.config.ts", "test", "file-explorer"],
+  "exclude": ["**/dist"]
 }
