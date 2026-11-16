@@ -1,4 +1,6 @@
 import type { PluginContext, UiEvent } from '@hetu/sdk'
+import { listAll } from './listing.ts'
+import { Refresher } from './refresh.ts'
 import { folderPaths, rowsOf } from './rows.ts'
 import { type Folder, treeOf } from './tree.ts'
 import { Ids, viewOf } from './view.ts'
@@ -7,6 +9,12 @@ import { Ids, viewOf } from './view.ts'
 const OPEN = 'open'
 
 type ViewEvent = Extract<UiEvent, { topic: 'view.event' }>
+
+// Lists again on each change the luoshu makes or sees made outside it, and on events.dropped, which says changes were
+// missed
+export async function subscribe(ctx: Pick<PluginContext, 'events'>, refresh: () => void): Promise<void> {
+  await ctx.events.on(['luoshu.changed', 'luoshu.outside'], () => refresh(), { onResync: () => refresh() })
+}
 
 // The explorer of one run: the tree of the last listing, the folders open in it and the views that show it
 export class Explorer {
@@ -18,6 +26,7 @@ export class Explorer {
   private status: string | null = null
   private drawing = false
   private drawAgain = false
+  private readonly refresher = new Refresher(() => this.list())
 
   constructor(ctx: PluginContext) {
     this.ctx = ctx
@@ -35,23 +44,15 @@ export class Explorer {
     this.ctx.ui.on('view.event', event => void this.heard(event))
     const saved = await this.ctx.try(this.ctx.storage.get({ key: OPEN }))
     if (saved.ok && Array.isArray(saved.value)) this.open = new Set(saved.value.filter((path): path is string => typeof path === 'string'))
-    void this.list()
+    await subscribe(this.ctx, () => this.refresher.request())
+    this.refresher.request()
   }
 
   private async list(): Promise<void> {
-    const pages: string[][] = []
-    let after: string | undefined
-    for (;;) {
-      const page = await this.ctx.try(this.ctx.luoshu.list(after === undefined ? {} : { after }))
-      if (!page.ok) {
-        this.status = `Listing refused: ${page.refused.code}`
-        return this.draw()
-      }
-      pages.push(page.value.paths)
-      if (page.value.next === null) break
-      after = page.value.next
-    }
-    this.listed(pages)
+    const listed = await listAll(args => this.ctx.luoshu.list(args))
+    if (listed.ok) return this.listed(listed.pages)
+    this.status = `Listing refused: ${listed.code}`
+    await this.draw()
   }
 
   // A new listing's tree. A folder no longer in it is no longer open, so one made again under that name starts closed

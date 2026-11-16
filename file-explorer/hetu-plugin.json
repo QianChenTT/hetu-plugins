@@ -9,6 +9,7 @@
   "capabilities": [
     { "type": "luoshu.list", "paths": ["**"] },
     { "type": "ui.view" },
+    { "type": "events.subscribe", "topics": ["luoshu.changed", "luoshu.outside"] },
     { "type": "storage" }
   ]
 }
