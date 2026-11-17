@@ -14,7 +14,6 @@ export const BINDINGS = [{ key: 'F2', command: 'rename' }, { key: 'Delete', comm
 type ViewEvent = Extract<UiEvent, { topic: 'view.event' }>
 
 const NOTE = '.md'
-const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '')
 
 // Lists again on each change the luoshu makes or sees made outside it and on events.dropped, which says changes were
 // missed
@@ -181,7 +180,7 @@ export class Explorer {
     }
     if (removed.refused.code === 'stale') {
       this.refresher.request()
-      return this.show({ kind: 'none' }, `${nameOf(path)} changed since it was read, look again`)
+      return this.show({ kind: 'none' }, `${path} changed since it was read, look again`)
     }
     await this.show({ kind: 'none' }, this.refusal(removed.refused, `delete ${path}`))
   }

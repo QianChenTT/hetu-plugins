@@ -136,7 +136,7 @@ describe('renaming a note', () => {
     click(drawer, 'cancel')
     await until(() => has(drawer, 'new'))
     command(drawer, 'delete')
-    await until(() => texts(drawer).includes('Move a to the recycle bin?'))
+    await until(() => texts(drawer).includes('Move a.md to the recycle bin?'))
   })
 
   it('does nothing on F2 or Delete with no note selected, a selected folder included', async () => {
@@ -208,8 +208,43 @@ describe('deleting a note', () => {
     const { drawer } = await started({ 'a.md': 'x' })
     await ask(drawer, 'a')
     const asked = nodes(nodes(view(drawer)).find(node => node.id === 'ask')!).flatMap(node => ('text' in node ? [node.text] : []))
-    expect(asked).toEqual(['Move a to the recycle bin?', 'Move to recycle bin', 'Cancel'])
+    expect(asked).toEqual(['Move a.md to the recycle bin?', 'Move to recycle bin', 'Cancel'])
     for (const text of asked) expect(text).not.toMatch(/confirm|allow|hetu|security/i)
+  })
+
+  // Two notes of one name in two folders ask two questions and a name can't reorder the words around it
+  it('names the note\'s whole path in its question, a bidi character in it drawn as U+FFFD', async () => {
+    const { drawer } = await started({ 'inbox/todo.md': '', 'work/todo.md': '', 'evil\u202egnp.md': '' })
+    click(drawer, row(drawer, '▸ inbox'))
+    await until(() => rows(drawer).includes('▾ inbox'))
+    click(drawer, row(drawer, '▸ work'))
+    await until(() => same(rows(drawer), ['▾ inbox', 'todo', '▾ work', 'todo', 'evil\ufffdgnp']))
+    const question = () => (nodes(view(drawer)).find(node => node.id === 'ask-text') as { text?: string } | undefined)?.text
+    const asks = async (at: number) => {
+      const list = nodes(view(drawer)).find(node => node.kind === 'list') as { rows: { id: string }[] }
+      click(drawer, list.rows[at]!.id)
+      await until(() => has(drawer, 'rename'))
+      command(drawer, 'delete')
+      await until(() => has(drawer, 'ask'))
+      const text = question()
+      click(drawer, 'no')
+      await until(() => !has(drawer, 'ask'))
+      return text
+    }
+    expect([await asks(1), await asks(3), await asks(4)]).toEqual([
+      'Move inbox/todo.md to the recycle bin?',
+      'Move work/todo.md to the recycle bin?',
+      'Move evil\ufffdgnp.md to the recycle bin?',
+    ])
+  })
+
+  it('draws a bidi character in a status line as U+FFFD', async () => {
+    const own = JSON.parse(readFileSync(manifest, 'utf8')) as { capabilities: { type: string, paths?: string[] }[] }
+    const capabilities = own.capabilities.map(item => (item.type === 'luoshu.read' ? { ...item, paths: ['a.md'] } : item))
+    const made = core({ notes: { 'a.md': '', 'evil\u202egnp.md': '' }, manifest: { ...own, capabilities } })
+    const { drawer } = await started({}, made)
+    click(drawer, row(drawer, 'evil\ufffdgnp'))
+    await until(() => status(drawer) === 'Can’t open evil\ufffdgnp.md: not-granted')
   })
 
   it('leaves a note that changed between its read and its removal, says so and lists again', async () => {
@@ -218,7 +253,7 @@ describe('deleting a note', () => {
     hooks.beforeRemove = () => fake.luoshu.write('a.md', 'changed')
     await ask(drawer, 'a')
     click(drawer, 'yes')
-    await until(() => status(drawer) === 'a changed since it was read, look again')
+    await until(() => status(drawer) === 'a.md changed since it was read, look again')
     expect(fake.luoshu.read('a.md')).toBe('changed')
     expect(rows(drawer)).toContain('a')
   })
