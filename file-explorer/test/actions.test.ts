@@ -5,8 +5,7 @@ import type { FakeDrawer } from '@hetu/sdk/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseDrawerCall } from '../../hetu/core/api/ui.ts'
 import { BINDINGS, Explorer } from '../src/explorer.ts'
-import explorer from '../src/worker.ts'
-import { click, close, command, core, emit, has, manifest, nodes, row, rows, same, texts, tick, until, view } from './helpers.ts'
+import { click, close, command, core, emit, has, manifest, nodes, QUICK_MS, quick, row, rows, same, texts, tick, until, view } from './helpers.ts'
 
 afterEach(close)
 
@@ -28,7 +27,7 @@ function counted() {
           }
         },
       })
-      return new Explorer(Object.assign(Object.create(ctx) as PluginContext, { luoshu })).start()
+      return new Explorer(Object.assign(Object.create(ctx) as PluginContext, { luoshu }), QUICK_MS).start()
     },
   })
   return { plugin, calls, hooks }
@@ -37,7 +36,7 @@ function counted() {
 const status = (drawer: FakeDrawer) => (nodes(view(drawer)).find(node => node.id === 'status') as { text?: string } | undefined)?.text
 const value = (drawer: FakeDrawer) => (nodes(view(drawer)).find(node => node.id === 'name') as { value?: string } | undefined)?.value
 
-async function started(notes: Record<string, string>, made = core({ notes }), plugin = explorer) {
+async function started(notes: Record<string, string>, made = core({ notes }), plugin = quick) {
   await made.fake.start(plugin)
   await until(() => rows(made.drawer).length > 0)
   return made

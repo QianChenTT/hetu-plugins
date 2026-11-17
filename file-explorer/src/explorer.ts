@@ -1,6 +1,6 @@
 import type { PluginContext, Refused, UiEvent } from '@hetu/sdk'
 import { listAll } from './listing.ts'
-import { Refresher } from './refresh.ts'
+import { GAP_MS, Refresher } from './refresh.ts'
 import { folderPaths, rowsOf } from './rows.ts'
 import { type Folder, treeOf } from './tree.ts'
 import { Ids, type Mode, type Selected, viewOf } from './view.ts'
@@ -36,10 +36,12 @@ export class Explorer {
   private mode: Mode = { kind: 'none' }
   private drawing = false
   private drawAgain = false
-  private readonly refresher = new Refresher(() => this.list())
+  private readonly refresher: Refresher
 
-  constructor(ctx: PluginContext) {
+  // gapMs is the wait between two listings, GAP_MS but in tests that make many changes one after another
+  constructor(ctx: PluginContext, gapMs = GAP_MS) {
     this.ctx = ctx
+    this.refresher = new Refresher(() => this.list(), gapMs)
   }
 
   // The handlers go first, so events held for start reach them

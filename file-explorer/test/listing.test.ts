@@ -1,10 +1,9 @@
-import { Refused } from '@hetu/sdk'
+import { definePlugin, type PluginContext, Refused } from '@hetu/sdk'
 import { afterEach, describe, expect, it } from 'vitest'
-import { subscribe } from '../src/explorer.ts'
+import { Explorer, subscribe } from '../src/explorer.ts'
 import { listAll, RETRY_MS, WAIT_MS } from '../src/listing.ts'
-import { Refresher } from '../src/refresh.ts'
-import explorer from '../src/worker.ts'
-import { close, core, rows, same, tick, until, view, nodes } from './helpers.ts'
+import { GAP_MS, Refresher } from '../src/refresh.ts'
+import { close, core, nodes, quick, rows, same, tick, until, view } from './helpers.ts'
 
 afterEach(close)
 
@@ -66,27 +65,56 @@ describe('refreshing', () => {
     return { run, count: () => count, end: async () => { release?.(); await tick() } }
   }
 
-  it('lists once for a request with none running', async () => {
+  // A wait after each listing that ends when the test lets it
+  function gaps() {
+    const asked: number[] = []
+    let release: (() => void) | null = null
+    const wait = (ms: number) => {
+      asked.push(ms)
+      return new Promise<void>(resolve => { release = resolve })
+    }
+    return { wait, asked, end: async () => { release?.(); await tick() } }
+  }
+
+  it('lists at once for a request with none running', async () => {
     const made = runs()
-    const refresher = new Refresher(made.run)
-    refresher.request()
+    const gap = gaps()
+    new Refresher(made.run, GAP_MS, gap.wait).request()
+    expect(made.count()).toBe(1)
     await made.end()
+    await gap.end()
     expect(made.count()).toBe(1)
   })
 
-  it('lists once more after the running listing for any number of requests that came meanwhile, never one each', async () => {
+  it('lists once more GAP_MS after the running listing for any number of requests that came meanwhile, never one each', async () => {
     const made = runs()
-    const refresher = new Refresher(made.run)
+    const gap = gaps()
+    const refresher = new Refresher(made.run, GAP_MS, gap.wait)
     refresher.request()
     for (let i = 0; i < 10; i++) refresher.request()
-    expect(made.count()).toBe(1)
     await made.end()
+    expect([made.count(), gap.asked]).toEqual([1, [GAP_MS]])
+    for (let i = 0; i < 10; i++) refresher.request()
+    await gap.end()
     expect(made.count()).toBe(2)
     await made.end()
+    await gap.end()
     expect(made.count()).toBe(2)
     refresher.request()
     expect(made.count()).toBe(3)
     await made.end()
+  })
+
+  it('lists once more for a request that came only while it waited', async () => {
+    const made = runs()
+    const gap = gaps()
+    const refresher = new Refresher(made.run, GAP_MS, gap.wait)
+    refresher.request()
+    await made.end()
+    refresher.request()
+    expect(made.count()).toBe(1)
+    await gap.end()
+    expect(made.count()).toBe(2)
   })
 
   it('subscribes to the luoshu\'s changes and lists again on each, on what it was told it missed too', async () => {
@@ -115,7 +143,7 @@ describe('refreshing', () => {
 describe('the explorer listing again', () => {
   it('shows a note written, written outside and removed', async () => {
     const { fake, drawer } = core({ notes: { 'a.md': '' } })
-    await fake.start(explorer)
+    await fake.start(quick)
     await until(() => same(rows(drawer), ['a']))
     await fake.luoshu.write('b.md', '')
     await until(() => same(rows(drawer), ['a', 'b']))
@@ -128,16 +156,48 @@ describe('the explorer listing again', () => {
   it('shows a refused listing as a line and lists again on the next change', async () => {
     const { fake, drawer } = core({ notes: { 'a.md': '' } })
     fake.luoshu.refuseNext('unavailable')
-    await fake.start(explorer)
+    await fake.start(quick)
     await until(() => nodes(view(drawer)).some(node => node.kind === 'text' && node.text === 'Listing refused: unavailable'))
     await fake.luoshu.write('b.md', '')
     await until(() => same(rows(drawer), ['a', 'b']))
     expect(nodes(view(drawer)).some(node => node.id === 'status')).toBe(false)
   })
 
+  // The burst's first change is listed at once and every other one, the change made once that listing began included,
+  // in one more listing GAP_MS after it
+  it('lists a burst of 200 changes twice and shows the last of them', async () => {
+    const lists: number[] = []
+    const plugin = definePlugin({
+      start: ctx => {
+        const luoshu = new Proxy(ctx.luoshu, {
+          get: (target, key) => {
+            const method = (target as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[key as string]!
+            return (...args: unknown[]) => {
+              if (key === 'list') lists.push(Date.now())
+              return method(...args)
+            }
+          },
+        })
+        return new Explorer(Object.assign(Object.create(ctx) as PluginContext, { luoshu })).start()
+      },
+    })
+    const { fake, drawer } = core({ notes: { 'a.md': '' } })
+    await fake.start(plugin)
+    await until(() => same(rows(drawer), ['a']))
+    await tick(GAP_MS + 50)
+    const before = lists.length
+    await Promise.all(Array.from({ length: 200 }, (_, i) => fake.luoshu.write(`s/n${i}.md`, '')))
+    await until(() => lists.length > before)
+    await fake.luoshu.write('z.md', '')
+    await until(() => rows(drawer).includes('z'), GAP_MS * 3)
+    await tick(GAP_MS + 100)
+    expect(lists.length - before).toBe(2)
+    expect(lists.at(-1)! - lists.at(-2)!).toBeGreaterThanOrEqual(GAP_MS - 10)
+  }, GAP_MS * 6)
+
   it('takes in a burst of changes that came while it listed', async () => {
     const { fake, drawer } = core({ notes: { 'a.md': '' }, latencyMs: 40 })
-    await fake.start(explorer)
+    await fake.start(quick)
     await until(() => same(rows(drawer), ['a']))
     await Promise.all(Array.from({ length: 20 }, (_, i) => fake.luoshu.write(`n${String(i).padStart(2, '0')}.md`, '')))
     await until(() => rows(drawer).length === 21)
