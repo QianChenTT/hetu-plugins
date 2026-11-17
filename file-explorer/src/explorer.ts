@@ -164,10 +164,12 @@ export class Explorer {
   }
 
   // After the question in the view: the note's version read right before it goes to the recycle bin, so a note that
-  // changed since is left as it is
+  // changed since is left as it is. The question goes before the first call, so a Yes clicked again while the calls are
+  // out finds nothing to confirm
   private async confirmed(): Promise<void> {
     if (this.mode.kind !== 'confirm') return
     const { path } = this.mode
+    void this.show({ kind: 'none' })
     const read = await this.ctx.try(this.ctx.luoshu.read({ path }))
     if (!read.ok) return this.show({ kind: 'none' }, this.refusal(read.refused, `delete ${path}`))
     const removed = await this.ctx.try(this.ctx.luoshu.remove({ path, baseVersion: read.value.version }))

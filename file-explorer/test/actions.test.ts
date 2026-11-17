@@ -252,4 +252,19 @@ describe('what the explorer reads', () => {
       ['read {"path":"m.md"}', `remove {"path":"m.md","baseVersion":"${sha('')}"}`],
     ])
   })
+
+  it('reads and removes once for a Yes clicked three times before the first read answers', async () => {
+    const { plugin, calls } = counted()
+    const { fake, drawer } = await started({}, core({ notes: { 'a.md': 'x', 'b.md': 'y' }, latencyMs: 20 }), plugin)
+    await ask(drawer, 'a')
+    const before = calls.length
+    for (let i = 0; i < 3; i++) click(drawer, 'yes')
+    await until(() => fake.luoshu.read('a.md') === undefined && same(rows(drawer), ['b']))
+    await tick(100)
+    expect(calls.slice(before).filter(call => !call.startsWith('list'))).toEqual([
+      'read {"path":"a.md"}',
+      `remove {"path":"a.md","baseVersion":"${sha('x')}"}`,
+    ])
+    expect(status(drawer)).toBeUndefined()
+  })
 })
