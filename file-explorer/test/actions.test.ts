@@ -5,8 +5,7 @@ import type { FakeDrawer } from '@hetu/sdk/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseDrawerCall } from '../../hetu/core/api/ui.ts'
 import { BINDINGS, Explorer } from '../src/explorer.ts'
-import explorer from '../src/worker.ts'
-import { click, close, command, core, emit, has, manifest, nodes, row, rows, same, texts, tick, until, view } from './helpers.ts'
+import { click, close, command, core, emit, has, manifest, nodes, QUICK_MS, quick, row, rows, same, texts, tick, until, view } from './helpers.ts'
 
 afterEach(close)
 
@@ -28,7 +27,7 @@ function counted() {
           }
         },
       })
-      return new Explorer(Object.assign(Object.create(ctx) as PluginContext, { luoshu })).start()
+      return new Explorer(Object.assign(Object.create(ctx) as PluginContext, { luoshu }), QUICK_MS).start()
     },
   })
   return { plugin, calls, hooks }
@@ -37,7 +36,7 @@ function counted() {
 const status = (drawer: FakeDrawer) => (nodes(view(drawer)).find(node => node.id === 'status') as { text?: string } | undefined)?.text
 const value = (drawer: FakeDrawer) => (nodes(view(drawer)).find(node => node.id === 'name') as { value?: string } | undefined)?.value
 
-async function started(notes: Record<string, string>, made = core({ notes }), plugin = explorer) {
+async function started(notes: Record<string, string>, made = core({ notes }), plugin = quick) {
   await made.fake.start(plugin)
   await until(() => rows(made.drawer).length > 0)
   return made
@@ -137,7 +136,7 @@ describe('renaming a note', () => {
     click(drawer, 'cancel')
     await until(() => has(drawer, 'new'))
     command(drawer, 'delete')
-    await until(() => texts(drawer).includes('Move a to the recycle bin?'))
+    await until(() => texts(drawer).includes('Move a.md to the recycle bin?'))
   })
 
   it('does nothing on F2 or Delete with no note selected, a selected folder included', async () => {
@@ -152,6 +151,36 @@ describe('renaming a note', () => {
     click(drawer, row(drawer, '▸ b'))
     await until(() => rows(drawer).includes('▾ b'))
     await still()
+  })
+
+  // The drawer sends a bound key whatever has focus in the view, the name input included
+  it('keeps a name being typed on F2 or Delete, in a create and in a rename', async () => {
+    const { fake, drawer } = await started({ 'a.md': 'x', 'b.md': 'y' })
+    await select(drawer, 'a')
+    // Each key alone, the input still drawn as it was and no question asked
+    const keys = async (typed: string) => {
+      const drawn = value(drawer)
+      emit(drawer, 'name', 'input', typed)
+      for (const name of ['delete', 'rename']) {
+        command(drawer, name)
+        await tick(50)
+        expect([name, has(drawer, 'name'), has(drawer, 'ask'), value(drawer)]).toEqual([name, true, false, drawn])
+      }
+    }
+    click(drawer, 'new')
+    await until(() => has(drawer, 'name'))
+    await keys('half typed na')
+    await fake.luoshu.write('c.md', '')
+    await until(() => rows(drawer).includes('c') && value(drawer) === 'half typed na')
+    click(drawer, 'cancel')
+    await until(() => has(drawer, 'new'))
+    click(drawer, 'rename')
+    await until(() => value(drawer) === 'a.md')
+    await keys('b/a2')
+    await fake.luoshu.write('d.md', '')
+    await until(() => rows(drawer).includes('d') && value(drawer) === 'b/a2')
+    emit(drawer, 'name', 'submit', 'b/a2')
+    await until(() => fake.luoshu.read('b/a2.md') === 'x')
   })
 
   it('binds F2 and Delete with key names the drawer takes', () => {
@@ -179,8 +208,43 @@ describe('deleting a note', () => {
     const { drawer } = await started({ 'a.md': 'x' })
     await ask(drawer, 'a')
     const asked = nodes(nodes(view(drawer)).find(node => node.id === 'ask')!).flatMap(node => ('text' in node ? [node.text] : []))
-    expect(asked).toEqual(['Move a to the recycle bin?', 'Move to recycle bin', 'Cancel'])
+    expect(asked).toEqual(['Move a.md to the recycle bin?', 'Move to recycle bin', 'Cancel'])
     for (const text of asked) expect(text).not.toMatch(/confirm|allow|hetu|security/i)
+  })
+
+  // Two notes of one name in two folders ask two questions and a name can't reorder the words around it
+  it('names the note\'s whole path in its question, a bidi character in it drawn as U+FFFD', async () => {
+    const { drawer } = await started({ 'inbox/todo.md': '', 'work/todo.md': '', 'evil\u202egnp.md': '' })
+    click(drawer, row(drawer, '▸ inbox'))
+    await until(() => rows(drawer).includes('▾ inbox'))
+    click(drawer, row(drawer, '▸ work'))
+    await until(() => same(rows(drawer), ['▾ inbox', 'todo', '▾ work', 'todo', 'evil\ufffdgnp']))
+    const question = () => (nodes(view(drawer)).find(node => node.id === 'ask-text') as { text?: string } | undefined)?.text
+    const asks = async (at: number) => {
+      const list = nodes(view(drawer)).find(node => node.kind === 'list') as { rows: { id: string }[] }
+      click(drawer, list.rows[at]!.id)
+      await until(() => has(drawer, 'rename'))
+      command(drawer, 'delete')
+      await until(() => has(drawer, 'ask'))
+      const text = question()
+      click(drawer, 'no')
+      await until(() => !has(drawer, 'ask'))
+      return text
+    }
+    expect([await asks(1), await asks(3), await asks(4)]).toEqual([
+      'Move inbox/todo.md to the recycle bin?',
+      'Move work/todo.md to the recycle bin?',
+      'Move evil\ufffdgnp.md to the recycle bin?',
+    ])
+  })
+
+  it('draws a bidi character in a status line as U+FFFD', async () => {
+    const own = JSON.parse(readFileSync(manifest, 'utf8')) as { capabilities: { type: string, paths?: string[] }[] }
+    const capabilities = own.capabilities.map(item => (item.type === 'luoshu.read' ? { ...item, paths: ['a.md'] } : item))
+    const made = core({ notes: { 'a.md': '', 'evil\u202egnp.md': '' }, manifest: { ...own, capabilities } })
+    const { drawer } = await started({}, made)
+    click(drawer, row(drawer, 'evil\ufffdgnp'))
+    await until(() => status(drawer) === 'Can’t open evil\ufffdgnp.md: not-granted')
   })
 
   it('leaves a note that changed between its read and its removal, says so and lists again', async () => {
@@ -189,7 +253,7 @@ describe('deleting a note', () => {
     hooks.beforeRemove = () => fake.luoshu.write('a.md', 'changed')
     await ask(drawer, 'a')
     click(drawer, 'yes')
-    await until(() => status(drawer) === 'a changed since it was read, look again')
+    await until(() => status(drawer) === 'a.md changed since it was read, look again')
     expect(fake.luoshu.read('a.md')).toBe('changed')
     expect(rows(drawer)).toContain('a')
   })
@@ -221,5 +285,20 @@ describe('what the explorer reads', () => {
       ['read {"path":"a.md"}', `remove {"path":"a.md","baseVersion":"${sha('x')}"}`],
       ['read {"path":"m.md"}', `remove {"path":"m.md","baseVersion":"${sha('')}"}`],
     ])
+  })
+
+  it('reads and removes once for a Yes clicked three times before the first read answers', async () => {
+    const { plugin, calls } = counted()
+    const { fake, drawer } = await started({}, core({ notes: { 'a.md': 'x', 'b.md': 'y' }, latencyMs: 20 }), plugin)
+    await ask(drawer, 'a')
+    const before = calls.length
+    for (let i = 0; i < 3; i++) click(drawer, 'yes')
+    await until(() => fake.luoshu.read('a.md') === undefined && same(rows(drawer), ['b']))
+    await tick(100)
+    expect(calls.slice(before).filter(call => !call.startsWith('list'))).toEqual([
+      'read {"path":"a.md"}',
+      `remove {"path":"a.md","baseVersion":"${sha('x')}"}`,
+    ])
+    expect(status(drawer)).toBeUndefined()
   })
 })

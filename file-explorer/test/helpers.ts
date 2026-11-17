@@ -1,8 +1,14 @@
 import path from 'node:path'
-import type { UiNode } from '@hetu/sdk'
+import { definePlugin, type UiNode } from '@hetu/sdk'
 import { type FakeCore, fakeCore, type FakeCoreOptions, FakeDrawer } from '@hetu/sdk/testing'
+import { Explorer } from '../src/explorer.ts'
 
 export const manifest = path.join(import.meta.dirname, '..', 'hetu-plugin.json')
+
+// The wait between two listings for tests that make one change after another, where GAP_MS would only slow them
+export const QUICK_MS = 10
+export const quick = definePlugin({ start: ctx => new Explorer(ctx, QUICK_MS).start() })
+
 const cores: FakeCore[] = []
 
 // A fake core with a drawer, closed by close()

@@ -1,6 +1,6 @@
 import type { PluginContext, Refused, UiEvent } from '@hetu/sdk'
 import { listAll } from './listing.ts'
-import { Refresher } from './refresh.ts'
+import { GAP_MS, Refresher } from './refresh.ts'
 import { folderPaths, rowsOf } from './rows.ts'
 import { type Folder, treeOf } from './tree.ts'
 import { Ids, type Mode, type Selected, viewOf } from './view.ts'
@@ -14,7 +14,6 @@ export const BINDINGS = [{ key: 'F2', command: 'rename' }, { key: 'Delete', comm
 type ViewEvent = Extract<UiEvent, { topic: 'view.event' }>
 
 const NOTE = '.md'
-const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '')
 
 // Lists again on each change the luoshu makes or sees made outside it and on events.dropped, which says changes were
 // missed
@@ -36,10 +35,12 @@ export class Explorer {
   private mode: Mode = { kind: 'none' }
   private drawing = false
   private drawAgain = false
-  private readonly refresher = new Refresher(() => this.list())
+  private readonly refresher: Refresher
 
-  constructor(ctx: PluginContext) {
+  // gapMs is the wait between two listings, GAP_MS but in tests that make many changes one after another
+  constructor(ctx: PluginContext, gapMs = GAP_MS) {
     this.ctx = ctx
+    this.refresher = new Refresher(() => this.list(), gapMs)
   }
 
   // The handlers go first, so events held for start reach them
@@ -52,8 +53,11 @@ export class Explorer {
       this.instances.delete(event.instance)
     })
     this.ctx.ui.on('view.event', event => void this.heard(event))
+    // The drawer sends a bound key whatever has focus in the view, so F2 or Delete pressed in the name input comes here
+    // too and is left to the input while a name is typed
     this.ctx.ui.on('view.command', event => {
-      if (this.instances.has(event.instance)) void this.commanded(event.command)
+      if (!this.instances.has(event.instance) || this.typing()) return
+      void this.commanded(event.command)
     })
     await this.ctx.try(this.ctx.ui.views.bind(BINDINGS))
     const saved = await this.ctx.try(this.ctx.storage.get({ key: OPEN }))
@@ -116,6 +120,10 @@ export class Explorer {
     if (name === 'delete') return this.show({ kind: 'confirm', path: note })
   }
 
+  private typing(): boolean {
+    return this.mode.kind === 'create' || this.mode.kind === 'rename'
+  }
+
   private async show(mode: Mode, told: string | null = null): Promise<void> {
     this.mode = mode
     this.told = told
@@ -157,10 +165,12 @@ export class Explorer {
   }
 
   // After the question in the view: the note's version read right before it goes to the recycle bin, so a note that
-  // changed since is left as it is
+  // changed since is left as it is. The question goes before the first call, so a Yes clicked again while the calls are
+  // out finds nothing to confirm
   private async confirmed(): Promise<void> {
     if (this.mode.kind !== 'confirm') return
     const { path } = this.mode
+    void this.show({ kind: 'none' })
     const read = await this.ctx.try(this.ctx.luoshu.read({ path }))
     if (!read.ok) return this.show({ kind: 'none' }, this.refusal(read.refused, `delete ${path}`))
     const removed = await this.ctx.try(this.ctx.luoshu.remove({ path, baseVersion: read.value.version }))
@@ -170,7 +180,7 @@ export class Explorer {
     }
     if (removed.refused.code === 'stale') {
       this.refresher.request()
-      return this.show({ kind: 'none' }, `${nameOf(path)} changed since it was read, look again`)
+      return this.show({ kind: 'none' }, `${path} changed since it was read, look again`)
     }
     await this.show({ kind: 'none' }, this.refusal(removed.refused, `delete ${path}`))
   }

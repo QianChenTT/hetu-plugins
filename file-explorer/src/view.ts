@@ -95,7 +95,7 @@ const same = (row: Row, selected: Selected | null) => selected !== null && row.k
 // A row is a button, so it takes focus and the keys the view binds reach it. The selected note's row holds Rename and
 // Delete beside it, for whoever never presses F2 or Delete
 function rowNode(row: Row, look: Look): UiNode {
-  const text = row.kind === 'folder' ? `${row.open ? '▾' : '▸'} ${row.name}` : row.name
+  const text = row.kind === 'folder' ? `${row.open ? '▾' : '▸'} ${shown(row.name)}` : shown(row.name)
   const chosen = same(row, look.selected)
   const style = { ...ROW, 'padding-left': `${8 + row.depth * 12}px`, ...(chosen ? SELECTED : {}) }
   const button: UiNode = { id: look.ids.id(row), kind: 'button', text, style, hover: { ...HOVER } }
@@ -112,8 +112,15 @@ function small(id: string, text: string): UiNode {
   return { id, kind: 'button', text, style: { ...SMALL }, hover: { ...HOVER } }
 }
 
-function name(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '')
+// Control characters and the marks that set the direction of text, which could reorder or hide the text around a name.
+// Each is drawn as U+FFFD, so a name made only of them still draws as something and two names that differ only in them
+// still differ. U+FFFD is one code unit and three UTF-8 bytes as each bidi mark is, so a name drawn is no longer than
+// the name. A path with a control character matches no grant and is never listed, so those reach the view only in a
+// typed path
+const HIDING = /[\p{Cc}\p{Bidi_Control}]/gu
+
+export function shown(text: string): string {
+  return text.replace(HIDING, '\ufffd')
 }
 
 // The bar: New note, or the name being typed with Cancel. Enter in the input does it
@@ -137,7 +144,7 @@ function ask(path: string): UiNode {
     side: 'below',
     style: { ...ASK },
     children: [
-      { id: 'ask-text', kind: 'text', text: `Move ${name(path)} to the recycle bin?` },
+      { id: 'ask-text', kind: 'text', text: `Move ${shown(path)} to the recycle bin?` },
       { id: 'ask-row', kind: 'box', style: { ...BAR }, children: [small('yes', 'Move to recycle bin'), small('no', 'Cancel')] },
     ],
   }
@@ -154,7 +161,7 @@ export function viewOf(look: Look): UiNode {
     children: [
       bar(look.mode),
       list(rows),
-      ...(look.status === null ? [] : [{ id: 'status', kind: 'text', text: look.status, style: { ...STATUS } } as UiNode]),
+      ...(look.status === null ? [] : [{ id: 'status', kind: 'text', text: shown(look.status), style: { ...STATUS } } as UiNode]),
       ...(look.mode.kind === 'confirm' ? [ask(look.mode.path)] : []),
     ],
   })
