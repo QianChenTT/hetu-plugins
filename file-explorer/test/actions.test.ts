@@ -154,6 +154,36 @@ describe('renaming a note', () => {
     await still()
   })
 
+  // The drawer sends a bound key whatever has focus in the view, the name input included
+  it('keeps a name being typed on F2 or Delete, in a create and in a rename', async () => {
+    const { fake, drawer } = await started({ 'a.md': 'x', 'b.md': 'y' })
+    await select(drawer, 'a')
+    // Each key alone, the input still drawn as it was and no question asked
+    const keys = async (typed: string) => {
+      const drawn = value(drawer)
+      emit(drawer, 'name', 'input', typed)
+      for (const name of ['delete', 'rename']) {
+        command(drawer, name)
+        await tick(50)
+        expect([name, has(drawer, 'name'), has(drawer, 'ask'), value(drawer)]).toEqual([name, true, false, drawn])
+      }
+    }
+    click(drawer, 'new')
+    await until(() => has(drawer, 'name'))
+    await keys('half typed na')
+    await fake.luoshu.write('c.md', '')
+    await until(() => rows(drawer).includes('c') && value(drawer) === 'half typed na')
+    click(drawer, 'cancel')
+    await until(() => has(drawer, 'new'))
+    click(drawer, 'rename')
+    await until(() => value(drawer) === 'a.md')
+    await keys('b/a2')
+    await fake.luoshu.write('d.md', '')
+    await until(() => rows(drawer).includes('d') && value(drawer) === 'b/a2')
+    emit(drawer, 'name', 'submit', 'b/a2')
+    await until(() => fake.luoshu.read('b/a2.md') === 'x')
+  })
+
   it('binds F2 and Delete with key names the drawer takes', () => {
     expect(BINDINGS).toEqual([{ key: 'F2', command: 'rename' }, { key: 'Delete', command: 'delete' }])
     expect(parseDrawerCall(JSON.stringify({ v: 1, kind: 'call', id: 1, verb: 'view.bind', args: { bindings: BINDINGS } }))).not.toBeNull()

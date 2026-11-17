@@ -52,8 +52,11 @@ export class Explorer {
       this.instances.delete(event.instance)
     })
     this.ctx.ui.on('view.event', event => void this.heard(event))
+    // The drawer sends a bound key whatever has focus in the view, so F2 or Delete pressed in the name input comes here
+    // too and is left to the input while a name is typed
     this.ctx.ui.on('view.command', event => {
-      if (this.instances.has(event.instance)) void this.commanded(event.command)
+      if (!this.instances.has(event.instance) || this.typing()) return
+      void this.commanded(event.command)
     })
     await this.ctx.try(this.ctx.ui.views.bind(BINDINGS))
     const saved = await this.ctx.try(this.ctx.storage.get({ key: OPEN }))
@@ -114,6 +117,10 @@ export class Explorer {
     if (note === null) return
     if (name === 'rename') return this.show({ kind: 'rename', from: note, value: note })
     if (name === 'delete') return this.show({ kind: 'confirm', path: note })
+  }
+
+  private typing(): boolean {
+    return this.mode.kind === 'create' || this.mode.kind === 'rename'
   }
 
   private async show(mode: Mode, told: string | null = null): Promise<void> {
