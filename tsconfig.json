@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "typeRoots": ["hetu/node_modules/@types"],
+    "paths": { "vitest": ["./hetu/node_modules/vitest/dist/index.d.ts"] },
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["build.ts", "vitest.config.ts", "test", "file-explorer"],
+  "exclude": ["**/dist"]
+}

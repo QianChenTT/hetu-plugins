@@ -1,0 +1,3 @@
+[submodule "hetu"]
+	path = hetu
+	url = https://github.com/QianChenTT/hetu.git
